@@ -12,16 +12,16 @@ let package = Package(
     products: [
         .library(
             name: "swift-query",
-            targets: ["swift-query"]
+            targets: ["SwiftQuery"]
         ),
     ],
     targets: [
         .target(
-            name: "swift-query"
+            name: "SwiftQuery"
         ),
         .testTarget(
-            name: "swift-queryTests",
-            dependencies: ["swift-query"]
+            name: "SwiftQueryTests",
+            dependencies: ["SwiftQuery"]
         ),
     ]
 )

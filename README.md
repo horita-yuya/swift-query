@@ -16,7 +16,7 @@ Or add it to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/horita-yuya/swift-query", from: "v1.0.0")
+    .package(url: "https://github.com/horita-yuya/swift-query.git", from: "1.0.1")
 ]
 ```
 
@@ -25,12 +25,10 @@ Then add `SwiftQuery` to your target dependencies:
 ```swift
 .target(
     name: "YourTarget",
-    dependencies: ["SwiftQuery"]
+    dependencies: [
+        .product(name: "SwiftQuery", package: "swift-query")
+    ]
 )
-
-or
-
-.product(name: "SwiftQuery", package: "swift-query")
 ```
 
 **Platform Requirements:**

@@ -114,6 +114,7 @@ struct CounterView: View {
 struct StaleWhileRevalidateSheet: View {
     @UseQuery<ServerResponse> var response
     @State private var fetchTimestamp: Date?
+    @State private var showSecondSheet = false
 
     var body: some View {
         ZStack {
@@ -236,6 +237,139 @@ struct StaleWhileRevalidateSheet: View {
                     }
                     .padding(.horizontal, 20)
                 }
+
+                Spacer()
+
+                Button {
+                    showSecondSheet = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Open Second Sheet")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+        }
+        .sheet(isPresented: $showSecondSheet) {
+            SecondBottomSheet()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+struct SecondBottomSheet: View {
+    @UseQuery<ServerResponse> var response
+    @State private var fetchTimestamp: Date?
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [.green.opacity(0.1), .cyan.opacity(0.1)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                VStack(spacing: 8) {
+                    Text("Second Bottom Sheet")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    VStack(spacing: 4) {
+                        Text("Server returns value: 15")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.green)
+
+                        Text("Demonstrates third query using same cache")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                }
+                .padding(.top, 20)
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(.ultraThinMaterial)
+                        .shadow(color: .black.opacity(0.05), radius: 15, x: 0, y: 5)
+
+                    Suspense($response) { response in
+                        VStack(spacing: 8) {
+                            Text("\(response.value)")
+                                .font(.system(size: 72, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.green, .cyan],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+
+                            Text("ID: \(response.id)")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+
+                            VStack(spacing: 4) {
+                                if let timestamp = fetchTimestamp {
+                                    Text("Fetched at \(timestamp.formatted(date: .omitted, time: .standard))")
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundStyle(.tertiary)
+                                } else {
+                                    Text("Fetched at 00:00:00 AM")
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundStyle(.tertiary)
+                                        .opacity(0)
+                                }
+                            }
+                            .frame(height: 16)
+                        }
+                        .frame(height: 140)
+                    } fallback: {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                            Text("Loading...")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(height: 140)
+                    } errorFallback: { error in
+                        VStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 28))
+                                .foregroundStyle(.red)
+                            Text(error.localizedDescription)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(height: 140)
+                    }
+                    .query($response, queryKey: "server-response", options: QueryOptions(staleTime: 0)) {
+                        let startTime = Date()
+
+                        await ServerDatabase.shared.add5()
+                        let value = await ServerDatabase.shared.value
+                        try await Task.sleep(for: .milliseconds(1000))
+
+                        fetchTimestamp = startTime
+
+                        return ServerResponse(id: "id", value: value)
+                    }
+                }
+                .frame(height: 200)
+                .padding(.horizontal, 20)
 
                 Spacer()
             }

@@ -314,18 +314,7 @@ private struct QueryModifier<Value: Sendable>: ViewModifier {
     func body(content: Content) -> some View {
         content
             .task(id: queryKey) {
-                let now = QueryClient.shared.clock.now()
-                let streams = await QueryClient.shared.store.streams(forKey: queryKey)?.values.map { $0 } ?? []
-                await run(queryKey: queryKey, showLoading: true, now: now, fileId: fileId, streams: streams)
-                let stream = await QueryClient.shared.createInvalidationStream(for: queryKey)
-                for await _ in stream {
-                    await run(queryKey: queryKey, showLoading: false, now: now, fileId: fileId, streams: streams)
-                    if let value = QueryClient.shared.value(queryKey, as: Value.self) {
-                        box.data = value
-                        box.error = nil
-                        box.isLoading = false
-                    }
-                }
+                await subscribe(queryKey: queryKey)
             }
             .onAppear {
                 if options.refetchOnAppear {
@@ -337,7 +326,22 @@ private struct QueryModifier<Value: Sendable>: ViewModifier {
             }
     }
     
-    private func run(queryKey: QueryKey, showLoading: Bool, now: Date, fileId: StaticString, streams: [AsyncStream<Void>.Continuation]) async {
+    func subscribe(queryKey: QueryKey) async {
+        let now = QueryClient.shared.clock.now()
+        let streams = await QueryClient.shared.store.streams(forKey: queryKey)?.values.map { $0 } ?? []
+        await run(queryKey: queryKey, showLoading: true, now: now, fileId: fileId, streams: streams)
+        let stream = await QueryClient.shared.createInvalidationStream(for: queryKey)
+        for await _ in stream {
+            await run(queryKey: queryKey, showLoading: false, now: now, fileId: fileId, streams: streams)
+            if let value = QueryClient.shared.value(queryKey, as: Value.self) {
+                box.data = value
+                box.error = nil
+                box.isLoading = false
+            }
+        }
+    }
+    
+    func run(queryKey: QueryKey, showLoading: Bool, now: Date, fileId: StaticString, streams: [AsyncStream<Void>.Continuation]) async {
         await BatchExecutor.shared.batchExecution(queryKey: queryKey) {
             SwiftQueryLogger.d(
                 "Fetching cache/remote",

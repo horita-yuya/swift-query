@@ -116,7 +116,7 @@ actor QueryClientStore: Sendable {
 }
 
 public final class QueryClient: Sendable {
-    public static let shared = QueryClient()
+    internal static let shared = QueryClient()
     fileprivate let store = QueryClientStore()
     fileprivate let clock: Clock
     
@@ -124,6 +124,7 @@ public final class QueryClient: Sendable {
         self.clock = clock
     }
     
+    @inline(__always)
     public func invalidate(_ key: QueryKey, fileId: StaticString = #fileID) async {
         SwiftQueryLogger.d(
             "Invalidating cache",
@@ -141,6 +142,7 @@ public final class QueryClient: Sendable {
         }
     }
     
+    @inline(__always)
     func createInvalidationStream(for key: QueryKey) async -> AsyncStream<Void> {
         let id = UUID()
         let (stream, continuation) = AsyncStream<Void>.makeStream()
@@ -153,11 +155,13 @@ public final class QueryClient: Sendable {
         return stream
     }
     
+    @inline(__always)
     func value<Value: Sendable>(_ key: QueryKey, as type: Value.Type = Value.self) -> Value? {
         let entry = store.entry(forKey: key, as: Value.self)
         return entry?.data
     }
     
+    @inline(__always)
     func fetch<Value: Sendable>(
         key: QueryKey,
         options: QueryOptions = .init(),
@@ -298,7 +302,18 @@ public extension View {
         queryFn: @escaping @Sendable () async throws -> Value,
         onCompleted: ((Value) -> Void)? = nil
     ) -> some View {
-        modifier(QueryModifier(box: box, queryKey: queryKey, options: options, fileId: fileId, queryFn: queryFn, onCompleted: onCompleted))
+        modifier(
+            QueryModifier(
+                box: box,
+                queryKey: queryKey,
+                options: options,
+                fileId: fileId,
+                queryClient: QueryClient.shared,
+                batchExecutor: BatchExecutor.shared,
+                queryFn: queryFn,
+                onCompleted: onCompleted
+            )
+        )
     }
 }
 
@@ -308,6 +323,8 @@ private struct QueryModifier<Value: Sendable>: ViewModifier {
     let queryKey: QueryKey
     let options: QueryOptions
     let fileId: StaticString
+    let queryClient: QueryClient
+    let batchExecutor: BatchExecutor
     let queryFn: @Sendable () async throws -> Value
     let onCompleted: ((Value) -> Void)?
 
@@ -318,7 +335,7 @@ private struct QueryModifier<Value: Sendable>: ViewModifier {
             }
             .onAppear {
                 if options.refetchOnAppear {
-                    let now = QueryClient.shared.clock.now()
+                    let now = queryClient.clock.now()
                     Task {
                         await run(queryKey: queryKey, showLoading: true, now: now, fileId: fileId, streams: [])
                     }
@@ -326,14 +343,15 @@ private struct QueryModifier<Value: Sendable>: ViewModifier {
             }
     }
     
+    @inline(__always)
     func subscribe(queryKey: QueryKey) async {
-        let now = QueryClient.shared.clock.now()
-        let streams = await QueryClient.shared.store.streams(forKey: queryKey)?.values.map { $0 } ?? []
+        let now = queryClient.clock.now()
+        let streams = await queryClient.store.streams(forKey: queryKey)?.values.map { $0 } ?? []
         await run(queryKey: queryKey, showLoading: true, now: now, fileId: fileId, streams: streams)
-        let stream = await QueryClient.shared.createInvalidationStream(for: queryKey)
+        let stream = await queryClient.createInvalidationStream(for: queryKey)
         for await _ in stream {
             await run(queryKey: queryKey, showLoading: false, now: now, fileId: fileId, streams: streams)
-            if let value = QueryClient.shared.value(queryKey, as: Value.self) {
+            if let value = queryClient.value(queryKey, as: Value.self) {
                 box.data = value
                 box.error = nil
                 box.isLoading = false
@@ -341,8 +359,9 @@ private struct QueryModifier<Value: Sendable>: ViewModifier {
         }
     }
     
+    @inline(__always)
     func run(queryKey: QueryKey, showLoading: Bool, now: Date, fileId: StaticString, streams: [AsyncStream<Void>.Continuation]) async {
-        await BatchExecutor.shared.batchExecution(queryKey: queryKey) {
+        await batchExecutor.batchExecution(queryKey: queryKey) {
             SwiftQueryLogger.d(
                 "Fetching cache/remote",
                 metadata: [
@@ -356,7 +375,7 @@ private struct QueryModifier<Value: Sendable>: ViewModifier {
                     box.isLoading = true
                 }
             }
-            let (isFresh, result) = await QueryClient.shared.fetch(
+            let (isFresh, result) = await queryClient.fetch(
                 key: queryKey,
                 options: options,
                 now: now,
@@ -382,7 +401,7 @@ private struct QueryModifier<Value: Sendable>: ViewModifier {
             }
             
             if !isFresh {
-                let (_, result) = await QueryClient.shared.fetch(
+                let (_, result) = await queryClient.fetch(
                     key: queryKey,
                     options: options,
                     now: now,
@@ -467,6 +486,7 @@ actor BatchExecutor {
     static let shared = BatchExecutor()
     private var queues: [QueryKey: [Task<Void, Never>]] = [:]
 
+    @inline(__always)
     func batchExecution(queryKey: QueryKey, debounce: TimeInterval = 0.1, perform: @escaping @Sendable () async -> Void) async -> Void {
         var queue = queues[queryKey, default: []]
         let firstTask = queue.first

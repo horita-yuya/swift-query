@@ -20,6 +20,7 @@ public struct MutationController {
         self.queryClient = queryClient
     }
 
+    @inline(__always)
     @discardableResult
     public func asyncPerform(
         _ mutationFn: @escaping @Sendable () async throws -> Void,
@@ -39,6 +40,7 @@ public struct MutationController {
         }
     }
 
+    @inline(__always)
     @discardableResult
     public func asyncPerform<T: Sendable>(
         _ operation: @escaping @Sendable () async throws -> T,
@@ -58,6 +60,7 @@ public struct MutationController {
         }
     }
 
+    @inline(__always)
     public func reset() {
         box.isRunning = false
         box.error = nil
@@ -70,8 +73,8 @@ public struct UseMutation: DynamicProperty {
     @State private var box = MutationBox()
     private let client: QueryClient
 
-    public init(client: QueryClient = .shared) {
-        self.client = client
+    public init() {
+        self.client = QueryClient.shared
     }
 
     public var wrappedValue: MutationController {

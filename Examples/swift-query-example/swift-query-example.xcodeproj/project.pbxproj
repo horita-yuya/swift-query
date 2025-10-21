@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		817874DB2EA6FF9100FC1C5A /* swift-query in Frameworks */ = {isa = PBXBuildFile; productRef = 817874DA2EA6FF9100FC1C5A /* swift-query */; };
+		817874EB2EA7CAAA00FC1C5A /* swift-query in Frameworks */ = {isa = PBXBuildFile; productRef = 817874EA2EA7CAAA00FC1C5A /* swift-query */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				817874DB2EA6FF9100FC1C5A /* swift-query in Frameworks */,
+				817874EB2EA7CAAA00FC1C5A /* swift-query in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +73,7 @@
 			name = "swift-query-example";
 			packageProductDependencies = (
 				817874DA2EA6FF9100FC1C5A /* swift-query */,
+				817874EA2EA7CAAA00FC1C5A /* swift-query */,
 			);
 			productName = "swift-query-example";
 			productReference = 817874AF2EA6FF0E00FC1C5A /* swift-query-example.app */;
@@ -351,6 +354,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		817874DA2EA6FF9100FC1C5A /* swift-query */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "swift-query";
+		};
+		817874EA2EA7CAAA00FC1C5A /* swift-query */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = "swift-query";
 		};

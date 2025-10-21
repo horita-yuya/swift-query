@@ -1,10 +1,3 @@
-//
-//  swift_query_exampleApp.swift
-//  swift-query-example
-//
-//  Created by Yuya Horita on 2025/10/21.
-//
-
 import SwiftUI
 
 @main

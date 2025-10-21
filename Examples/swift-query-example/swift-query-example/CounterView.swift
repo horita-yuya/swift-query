@@ -46,7 +46,7 @@ struct CounterView: View {
                             .fill(.ultraThinMaterial)
                             .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
 
-                        Suspense($response) { response in
+                        Boundary($response) { response in
                             VStack(spacing: 8) {
                                 Text("\(response.value)")
                                     .font(.system(size: 96, weight: .bold, design: .rounded))
@@ -151,7 +151,7 @@ struct StaleWhileRevalidateSheet: View {
                             .fill(.ultraThinMaterial)
                             .shadow(color: .black.opacity(0.05), radius: 15, x: 0, y: 5)
 
-                        Suspense($response) { response in
+                        Boundary($response) { response in
                             VStack(spacing: 8) {
                                 Text("\(response.value)")
                                     .font(.system(size: 72, weight: .bold, design: .rounded))
@@ -305,7 +305,7 @@ struct SecondBottomSheet: View {
                         .fill(.ultraThinMaterial)
                         .shadow(color: .black.opacity(0.05), radius: 15, x: 0, y: 5)
 
-                    Suspense($response) { response in
+                    Boundary($response) { response in
                         VStack(spacing: 8) {
                             Text("\(response.value)")
                                 .font(.system(size: 72, weight: .bold, design: .rounded))

@@ -433,7 +433,7 @@ struct QueryModifier<Value: Sendable>: ViewModifier {
     }
 }
 
-public struct Suspense<Content: View, Fallback: View, ErrorFallback: View, Value: Sendable>: View {
+public struct Boundary<Content: View, Fallback: View, ErrorFallback: View, Value: Sendable>: View {
     @Binding private var box: QueryBox<Value>
     private var content: (Value) -> Content
     private var fallback: (() -> Fallback)?

@@ -100,7 +100,7 @@ struct MyView: View {
     @UseQuery<User> var user
 
     var body: some View {
-        Suspense($user) { user in
+        Boundary($user) { user in
             Text(user.name)
         } fallback: {
             ProgressView()

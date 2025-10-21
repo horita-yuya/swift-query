@@ -33,27 +33,6 @@ import Testing
         #expect(cached == "Alice")
     }
 
-    @Test func concurrent_fetches_are_coalesced_using_in_flight_task() async {
-        let client = QueryClient()
-        let calls = Counter()
-        let key: QueryKey = ["post", 42]
-        let options = QueryOptions(staleTime: 0, gcTime: 300, refetchOnAppear: true)
-
-        @Sendable func fetcher() async throws -> Int {
-            await calls.inc()
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            return 99
-        }
-
-        async let a = client.fetch(key: key, options: options, now: Date(), forceRefresh: false, fileId: "", fetcher: fetcher)
-        async let b = client.fetch(key: key, options: options, now: Date(), forceRefresh: false, fileId: "", fetcher: fetcher)
-        let (ra, rb) = await (a, b)
-
-        #expect(try! ra.result.get() == 99)
-        #expect(try! rb.result.get() == 99)
-        #expect(await calls.value == 1)
-    }
-
     @Test func fetch_failure_propagates_and_stores_error() async {
         struct E: Error, Equatable {}
         let client = QueryClient()

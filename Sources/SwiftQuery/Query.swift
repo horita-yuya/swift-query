@@ -317,7 +317,7 @@ public extension View {
     }
 }
 
-private struct QueryModifier<Value: Sendable>: ViewModifier {
+struct QueryModifier<Value: Sendable>: ViewModifier {
     @Binding var box: QueryBox<Value>
     
     let queryKey: QueryKey

@@ -108,6 +108,54 @@ struct UserView: View {
 
 The data is automatically cached. If another view uses the same query key, it gets the cached data instantly - no duplicate requests!
 
+**Note:** Applications often define a common `AppBoundary` component that wraps `Boundary` with default `fallback` (e.g., `DefaultFallback`) and `errorFallback` (e.g., `DefaultErrorFallback`) views. This makes your code even simpler:
+
+```swift
+// Define once in your app
+struct AppBoundary<T, Content: View>: View {
+    @Binding var query: QueryBox<T>
+    let content: (T) -> Content
+
+    init(_ query: Binding<QueryBox<T>>, @ViewBuilder content: @escaping (T) -> Content) {
+        self._query = query
+        self.content = content
+    }
+
+    var body: some View {
+        Boundary($query, content: content) {
+            // Default loading view
+            ProgressView()
+        } errorFallback: { error in
+            // Default error view
+            VStack {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.largeTitle)
+                    .foregroundColor(.red)
+                Text("Error: \(error.localizedDescription)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+// Then use it everywhere
+struct UserView: View {
+    @UseQuery<User> var user
+
+    var body: some View {
+        AppBoundary($user) { user in
+            Text(user.name)
+        }
+        .query($user, queryKey: "user") {
+            try await fetchUser()
+        }
+    }
+}
+```
+
+Much cleaner! The rest of the examples below use `AppBoundary` for simplicity.
+
 ## Practical Examples
 
 ### 1. Basic Query with Cache
@@ -119,7 +167,7 @@ struct ProfileView: View {
     @UseQuery<User> var user
 
     var body: some View {
-        Boundary($user) { user in
+        AppBoundary($user) { user in
             VStack {
                 AsyncImage(url: URL(string: user.avatarURL))
                 Text(user.name)
@@ -127,10 +175,6 @@ struct ProfileView: View {
                 Text(user.email)
                     .font(.subheadline)
             }
-        } fallback: {
-            ProgressView()
-        } errorFallback: { error in
-            ErrorView(error: error)
         }
         .query($user, queryKey: ["user", userId], options: QueryOptions(staleTime: 60)) {
             try await api.fetchUser(id: userId)
@@ -149,16 +193,12 @@ struct PostListView: View {
 
     var body: some View {
         List {
-            Boundary($posts) { posts in
+            AppBoundary($posts) { posts in
                 ForEach(posts) { post in
                     NavigationLink(value: post) {
                         PostRow(post: post)
                     }
                 }
-            } fallback: {
-                ProgressView()
-            } errorFallback: { error in
-                Text("Failed to load posts")
             }
         }
         .query($posts, queryKey: "posts", options: QueryOptions(staleTime: 30)) {
@@ -172,17 +212,13 @@ struct PostRow: View {
     @UseQuery<PostDetails> var details
 
     var body: some View {
-        Boundary($details) { details in
+        AppBoundary($details) { details in
             VStack(alignment: .leading) {
                 Text(details.title)
                     .font(.headline)
                 Text("\(details.likes) likes")
                     .font(.caption)
             }
-        } fallback: {
-            Text(post.title) // Show basic info while loading
-        } errorFallback: { _ in
-            Text(post.title)
         }
         .query($details, queryKey: ["post", post.id], options: QueryOptions(staleTime: 60)) {
             try await api.fetchPostDetails(id: post.id)
@@ -203,7 +239,7 @@ struct EditProfileView: View {
 
     var body: some View {
         Form {
-            Boundary($user) { user in
+            AppBoundary($user) { user in
                 TextField("Name", text: $name)
                     .onAppear { name = user.name }
 
@@ -218,10 +254,6 @@ struct EditProfileView: View {
                     }
                 }
                 .disabled(updateUser.isLoading)
-            } fallback: {
-                ProgressView()
-            } errorFallback: { error in
-                Text("Error loading user")
             }
         }
         .query($user, queryKey: ["user", userId]) {
@@ -242,27 +274,19 @@ struct UserPostsView: View {
 
     var body: some View {
         VStack {
-            Boundary($user) { user in
+            AppBoundary($user) { user in
                 Text(user.name)
                     .font(.headline)
 
-                Boundary($posts) { posts in
+                AppBoundary($posts) { posts in
                     List(posts) { post in
                         PostRow(post: post)
                     }
-                } fallback: {
-                    ProgressView()
-                } errorFallback: { error in
-                    Text("Failed to load posts")
                 }
                 .query($posts, queryKey: ["user-posts", user.id]) {
                     // This query only runs after user data is available
                     try await api.fetchUserPosts(userId: user.id)
                 }
-            } fallback: {
-                ProgressView()
-            } errorFallback: { error in
-                Text("Failed to load user")
             }
         }
         .query($user, queryKey: ["user", userId]) {
@@ -282,14 +306,10 @@ struct DashboardView: View {
     @State private var showWelcome = false
 
     var body: some View {
-        Boundary($dashboard) { data in
+        AppBoundary($dashboard) { data in
             ScrollView {
                 DashboardContent(data: data)
             }
-        } fallback: {
-            ProgressView()
-        } errorFallback: { error in
-            ErrorView(error: error)
         }
         .query($dashboard, queryKey: "dashboard") {
             try await api.fetchDashboard()
@@ -316,14 +336,10 @@ struct NewsView: View {
 
     var body: some View {
         List {
-            Boundary($articles) { articles in
+            AppBoundary($articles) { articles in
                 ForEach(articles) { article in
                     ArticleRow(article: article)
                 }
-            } fallback: {
-                ProgressView()
-            } errorFallback: { error in
-                Text("Failed to load news")
             }
         }
         .query($articles, queryKey: "news", options: QueryOptions(staleTime: 0)) {

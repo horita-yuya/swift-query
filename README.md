@@ -9,7 +9,7 @@ A Swift Package Manager library that brings [TanStack Query's](https://github.co
 Add swift-query to your project using Xcode:
 
 1. File > Add Package Dependencies...
-2. Enter the repository URL: `https://github.com/yourusername/swift-query`
+2. Enter the repository URL: `https://github.com/horita-yuya/swift-query`
 3. Select the version you want to use
 
 Or add it to your `Package.swift`:
@@ -27,6 +27,10 @@ Then add `SwiftQuery` to your target dependencies:
     name: "YourTarget",
     dependencies: ["SwiftQuery"]
 )
+
+or
+
+.product(name: "SwiftQuery", package: "swift-query")
 ```
 
 **Platform Requirements:**

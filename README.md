@@ -1,6 +1,6 @@
 # swift-query
 
-A Swift Package Manager library that brings [TanStack Query's](https://github.com/TanStack/query) powerful data fetching and caching patterns to SwiftUI. Manage asynchronous queries with automatic caching, invalidation, and UI updates.
+A Data and State Manager library that brings [TanStack Query's](https://github.com/TanStack/query) powerful data fetching and caching patterns to SwiftUI. Manage asynchronous queries with automatic caching, invalidation, and UI updates.
 
 ## Installation
 

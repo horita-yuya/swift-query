@@ -8,8 +8,17 @@ extension Boundary {
     ) {
         self.init(value, content: content) {
             ProgressView()
+                .scaleEffect(1.5)
+            
         } errorFallback: { error in
-            Text("Error: \(error.localizedDescription)")
+            VStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.red)
+                Text(error.localizedDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -72,18 +81,6 @@ struct CounterView: View {
                                     )
                                 Text("ID: \(response.id)")
                                     .font(.system(size: 14, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.secondary)
-                            }
-                        } fallback: {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                        } errorFallback: { error in
-                            VStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 32))
-                                    .foregroundStyle(.red)
-                                Text(error.localizedDescription)
-                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -193,25 +190,6 @@ struct StaleWhileRevalidateSheet: View {
                                     }
                                 }
                                 .frame(height: 16)
-                            }
-                            .frame(height: 140)
-                        } fallback: {
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                    .scaleEffect(1.5)
-                                Text("Loading...")
-                                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(height: 140)
-                        } errorFallback: { error in
-                            VStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 28))
-                                    .foregroundStyle(.red)
-                                Text(error.localizedDescription)
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.secondary)
                             }
                             .frame(height: 140)
                         }
@@ -347,25 +325,6 @@ struct SecondBottomSheet: View {
                                 }
                             }
                             .frame(height: 16)
-                        }
-                        .frame(height: 140)
-                    } fallback: {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                            Text("Loading...")
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(height: 140)
-                    } errorFallback: { error in
-                        VStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 28))
-                                .foregroundStyle(.red)
-                            Text(error.localizedDescription)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary)
                         }
                         .frame(height: 140)
                     }

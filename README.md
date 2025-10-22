@@ -108,32 +108,28 @@ struct UserView: View {
 
 The data is automatically cached. If another view uses the same query key, it gets the cached data instantly - no duplicate requests!
 
-**Note:** Applications often define a common `AppBoundary` component that wraps `Boundary` with default `fallback` (e.g., `DefaultFallback`) and `errorFallback` (e.g., `DefaultErrorFallback`) views. This makes your code even simpler:
+**Note:** Applications often define a custom `Boundary` initializer via extension with default `fallback` and `errorFallback` views. This makes your code even simpler:
 
 ```swift
 // Define once in your app
-struct AppBoundary<T, Content: View>: View {
-    @Binding var query: QueryBox<T>
-    let content: (T) -> Content
-
-    init(_ query: Binding<QueryBox<T>>, @ViewBuilder content: @escaping (T) -> Content) {
-        self._query = query
-        self.content = content
-    }
-
-    var body: some View {
-        Boundary($query, content: content) {
+extension Boundary {
+    init(
+        _ value: Binding<QueryBox<Value>>,
+        @ViewBuilder content: @escaping (Value) -> Content
+    ) {
+        self.init(value, content: content) {
             // Default loading view
             ProgressView()
+                .scaleEffect(1.5)
         } errorFallback: { error in
             // Default error view
-            VStack {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.largeTitle)
-                    .foregroundColor(.red)
-                Text("Error: \(error.localizedDescription)")
+            VStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.red)
+                Text(error.localizedDescription)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -144,7 +140,7 @@ struct UserView: View {
     @UseQuery<User> var user
 
     var body: some View {
-        AppBoundary($user) { user in
+        Boundary($user) { user in
             Text(user.name)
         }
         .query($user, queryKey: "user") {
@@ -154,7 +150,7 @@ struct UserView: View {
 }
 ```
 
-Much cleaner! The rest of the examples below use `AppBoundary` for simplicity.
+Much cleaner! The rest of the examples below use the custom `Boundary` initializer for simplicity.
 
 ## Practical Examples
 
@@ -167,7 +163,7 @@ struct ProfileView: View {
     @UseQuery<User> var user
 
     var body: some View {
-        AppBoundary($user) { user in
+        Boundary($user) { user in
             VStack {
                 AsyncImage(url: URL(string: user.avatarURL))
                 Text(user.name)
@@ -193,7 +189,7 @@ struct PostListView: View {
 
     var body: some View {
         List {
-            AppBoundary($posts) { posts in
+            Boundary($posts) { posts in
                 ForEach(posts) { post in
                     NavigationLink(value: post) {
                         PostRow(post: post)
@@ -212,7 +208,7 @@ struct PostRow: View {
     @UseQuery<PostDetails> var details
 
     var body: some View {
-        AppBoundary($details) { details in
+        Boundary($details) { details in
             VStack(alignment: .leading) {
                 Text(details.title)
                     .font(.headline)
@@ -239,7 +235,7 @@ struct EditProfileView: View {
 
     var body: some View {
         Form {
-            AppBoundary($user) { user in
+            Boundary($user) { user in
                 TextField("Name", text: $name)
                     .onAppear { name = user.name }
 
@@ -274,11 +270,11 @@ struct UserPostsView: View {
 
     var body: some View {
         VStack {
-            AppBoundary($user) { user in
+            Boundary($user) { user in
                 Text(user.name)
                     .font(.headline)
 
-                AppBoundary($posts) { posts in
+                Boundary($posts) { posts in
                     List(posts) { post in
                         PostRow(post: post)
                     }
@@ -306,7 +302,7 @@ struct DashboardView: View {
     @State private var showWelcome = false
 
     var body: some View {
-        AppBoundary($dashboard) { data in
+        Boundary($dashboard) { data in
             ScrollView {
                 DashboardContent(data: data)
             }
@@ -336,7 +332,7 @@ struct NewsView: View {
 
     var body: some View {
         List {
-            AppBoundary($articles) { articles in
+            Boundary($articles) { articles in
                 ForEach(articles) { article in
                     ArticleRow(article: article)
                 }

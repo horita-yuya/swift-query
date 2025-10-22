@@ -440,6 +440,7 @@ public struct Boundary<Content: View, Value: Sendable>: View {
     private let fallback: (() -> AnyView)?
     private let errorFallback: ((Error) -> AnyView)?
 
+    @_disfavoredOverload
     public init(
         _ box: Binding<QueryBox<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content
@@ -450,6 +451,7 @@ public struct Boundary<Content: View, Value: Sendable>: View {
         self.errorFallback = nil
     }
 
+    @_disfavoredOverload
     public init(
         _ box: Binding<QueryBox<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content,
@@ -461,6 +463,7 @@ public struct Boundary<Content: View, Value: Sendable>: View {
         self.errorFallback = nil
     }
 
+    @_disfavoredOverload
     public init(
         _ box: Binding<QueryBox<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content,

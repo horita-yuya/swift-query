@@ -433,39 +433,44 @@ struct QueryModifier<Value: Sendable>: ViewModifier {
     }
 }
 
-public struct Boundary<Content: View, Fallback: View, ErrorFallback: View, Value: Sendable>: View {
-    @Binding private var box: QueryBox<Value>
-    private var content: (Value) -> Content
-    private var fallback: (() -> Fallback)?
-    private var errorFallback: ((Error) -> ErrorFallback)?
     
-    public init(_ box: Binding<QueryBox<Value>>,
-                @ViewBuilder content: @escaping (Value) -> Content) where Fallback == Never, ErrorFallback == Never {
+public struct Boundary<Content: View, Value: Sendable>: View {
+    @Binding private var box: QueryBox<Value>
+    private let content: (Value) -> Content
+    private let fallback: (() -> AnyView)?
+    private let errorFallback: ((Error) -> AnyView)?
+
+    public init(
+        _ box: Binding<QueryBox<Value>>,
+        @ViewBuilder content: @escaping (Value) -> Content
+    ) {
         self._box = box
         self.content = content
         self.fallback = nil
         self.errorFallback = nil
     }
-    
-    public init(_ box: Binding<QueryBox<Value>>,
-                @ViewBuilder content: @escaping (Value) -> Content,
-                @ViewBuilder fallback: @escaping () -> Fallback
-    ) where ErrorFallback == Never {
-        self._box = box
-        self.content = content
-        self.fallback = fallback
-        self.errorFallback = nil
-    }
-    
-    public init(_ box: Binding<QueryBox<Value>>,
-                @ViewBuilder content: @escaping (Value) -> Content,
-                @ViewBuilder fallback: @escaping () -> Fallback,
-                @ViewBuilder errorFallback: @escaping (Error) -> ErrorFallback
+
+    public init(
+        _ box: Binding<QueryBox<Value>>,
+        @ViewBuilder content: @escaping (Value) -> Content,
+        @ViewBuilder fallback: @escaping () -> some View
     ) {
         self._box = box
         self.content = content
-        self.fallback = fallback
-        self.errorFallback = errorFallback
+        self.fallback = { AnyView(fallback()) }
+        self.errorFallback = nil
+    }
+
+    public init(
+        _ box: Binding<QueryBox<Value>>,
+        @ViewBuilder content: @escaping (Value) -> Content,
+        @ViewBuilder fallback: @escaping () -> some View,
+        @ViewBuilder errorFallback: @escaping (Error) -> some View
+    ) {
+        self._box = box
+        self.content = content
+        self.fallback = { AnyView(fallback()) }
+        self.errorFallback = { error in AnyView(errorFallback(error)) }
     }
     
     public var body: some View {

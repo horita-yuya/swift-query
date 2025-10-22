@@ -1,6 +1,19 @@
 import SwiftUI
 import SwiftQuery
 
+extension Boundary {
+    init(
+        _ value: Binding<QueryBox<Value>>,
+        @ViewBuilder content: @escaping (Value) -> Content
+    ) {
+        self.init(value, content: content) {
+            ProgressView()
+        } errorFallback: { error in
+            Text("Error: \(error.localizedDescription)")
+        }
+    }
+}
+
 struct ServerResponse: Sendable {
     let id: String
     let value: Int

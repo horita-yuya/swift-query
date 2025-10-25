@@ -3,7 +3,7 @@ import SwiftQuery
 
 extension Boundary {
     init(
-        _ value: Binding<QueryBox<Value>>,
+        _ value: Binding<QueryObserver<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content
     ) {
         self.init(value, content: content) {
@@ -39,7 +39,7 @@ private final actor ServerDatabase {
 }
 
 struct CounterView: View {
-    @UseQuery<ServerResponse> var response
+    @UseQuery var response: ServerResponse?
     @State private var showBottomSheet = false
 
     var body: some View {
@@ -84,7 +84,7 @@ struct CounterView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .query($response, queryKey: "server-response", options: QueryOptions(staleTime: 0)) {
+                        .query($response, queryKey: "server-response") {
                             try await Task.sleep(for: .milliseconds(300))
                             let value = await ServerDatabase.shared.value
                             return ServerResponse(id: "id", value: value)

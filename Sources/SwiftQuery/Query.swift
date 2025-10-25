@@ -8,7 +8,7 @@ public struct QueryKey: Equatable, Hashable, Sendable, ExpressibleByArrayLiteral
         self.parts = parts
     }
     
-    public init(arrayLiteral elements: Any...) {
+    public init(arrayLiteral elements: CustomStringConvertible...) {
         self.parts = elements.map { "\($0)" }
     }
     
@@ -34,84 +34,70 @@ public struct QueryOptions: Equatable, Hashable, Sendable {
     }
 }
 
-final actor CacheMetadata: Sendable {
+struct CacheEntry<Value: Sendable>: Sendable {
+    var data: Value?
+    var error: Error?
     var readAt: Date
     var updatedAt: Date
     
     init(
+        data: Value?,
+        error: Error?,
         readAt: Date,
         updatedAt: Date
     ) {
-        self.readAt = readAt
-        self.updatedAt = updatedAt
-    }
-    
-    func updateReadAt(_ date: Date) {
-        self.readAt = date
-    }
-    
-    func updateUpdatedAt(_ date: Date) {
-        self.updatedAt = date
-    }
-}
-
-struct CacheEntry<Value: Sendable>: Sendable {
-    var data: Value?
-    var error: Error?
-    var inFlight: Task<Value, Error>?
-    let metadata: CacheMetadata
-    
-    init(data: Value?, error: Error?, inFlight: Task<Value, Error>?, metadata: CacheMetadata) {
         self.data = data
         self.error = error
-        self.inFlight = inFlight
-        self.metadata = metadata
-    }
-    
-    // if staleTime is 0, it is marked as stale immediately
-    func isFresh(staleTime: TimeInterval, now: Date) async -> Bool {
-        let updatedAt = await metadata.updatedAt
-        return now.timeIntervalSince(updatedAt) < staleTime
-    }
-    
-    func value(now: Date) async -> Value? {
-        if let data {
-            await metadata.updateReadAt(now)
-            return data
-        } else {
-            return nil
-        }
+        self.readAt = readAt
+        self.updatedAt = updatedAt
     }
 }
 
 actor QueryClientStore: Sendable {
     private var watchers: [QueryKey: [UUID: AsyncStream<Void>.Continuation]] = [:]
-    private let cache = OSAllocatedUnfairLock<[QueryKey: any Sendable]>(initialState: [:])
+    private var cache: [QueryKey: Any] = [:]
     
-    func streams(forKey key: QueryKey) -> [UUID: AsyncStream<Void>.Continuation]? {
-        watchers[key]
+    func streams(queryKey: QueryKey) -> [UUID: AsyncStream<Void>.Continuation]? {
+        watchers[queryKey]
     }
     
-    func storeStream(forKey key: QueryKey, id: UUID, continuation: AsyncStream<Void>.Continuation) {
-        watchers[key, default: [:]][id] = continuation
+    func storeStream(queryKey: QueryKey, id: UUID, continuation: AsyncStream<Void>.Continuation) {
+        watchers[queryKey, default: [:]][id] = continuation
     }
     
-    func removeStream(forKey key: QueryKey, id: UUID) {
-        watchers[key]?[id] = nil
+    func removeStream(queryKey: QueryKey, id: UUID) {
+        watchers[queryKey]?[id] = nil
     }
     
-    nonisolated func entry<Value>(forKey key: QueryKey, as type: Value.Type) -> CacheEntry<Value>? {
-        cache.withLock {
-            $0[key] as? CacheEntry<Value>
+    func entry<Value>(queryKey: QueryKey, as type: Value.Type) -> CacheEntry<Value>? {
+        cache[queryKey] as? CacheEntry<Value>
+    }
+    
+    func withEntry<Value>(
+        queryKey: QueryKey,
+        as type: Value.Type,
+        now: Date,
+        handler: (inout CacheEntry<Value>) async -> (Bool, Result<Value, Error>)
+    ) async -> (isFresh: Bool, result: Result<Value, Error>) {
+        if var entry = cache[queryKey] as? CacheEntry<Value> {
+            let result = await handler(&entry)
+            cache[queryKey] = entry
+            return result
+        } else {
+            var entry = CacheEntry<Value>(
+                data: nil,
+                error: nil,
+                readAt: now,
+                updatedAt: now
+            )
+            let result = await handler(&entry)
+            cache[queryKey] = entry
+            return result
         }
     }
     
-    nonisolated func storeEntry<Value>(forKey key: QueryKey, entry: CacheEntry<Value>) {
-        cache.withLock { $0[key] = entry }
-    }
-    
-    nonisolated func removeEntry(forKey key: QueryKey) {
-        _ = cache.withLock { $0.removeValue(forKey: key) }
+    func removeEntry(queryKey: QueryKey) {
+        cache.removeValue(forKey: queryKey)
     }
 }
 
@@ -125,17 +111,17 @@ public final class QueryClient: Sendable {
     }
     
     @inline(__always)
-    public func invalidate(_ key: QueryKey, fileId: StaticString = #fileID) async {
+    public func invalidate(_ queryKey: QueryKey, fileId: StaticString = #fileID) async {
         SwiftQueryLogger.d(
             "Invalidating cache",
             metadata: [
-                "key": key,
+                "queryKey": queryKey,
                 "View": fileId
             ]
         )
-        store.removeEntry(forKey: key)
+        await store.removeEntry(queryKey: queryKey)
         
-        if let streams = await store.streams(forKey: key) {
+        if let streams = await store.streams(queryKey: queryKey) {
             for (_, continuation) in streams {
                 continuation.yield(())
             }
@@ -143,159 +129,165 @@ public final class QueryClient: Sendable {
     }
     
     @inline(__always)
-    func createInvalidationStream(for key: QueryKey) async -> AsyncStream<Void> {
+    func createSyncStream(queryKey: QueryKey) async -> AsyncStream<Void> {
         let id = UUID()
         let (stream, continuation) = AsyncStream<Void>.makeStream()
-        await store.storeStream(forKey: key, id: id, continuation: continuation)
+        await store.storeStream(queryKey: queryKey, id: id, continuation: continuation)
         continuation.onTermination = { [weak self] _ in
             Task.detached {
-                await self?.store.removeStream(forKey: key, id: id)
+                await self?.store.removeStream(queryKey: queryKey, id: id)
             }
         }
         return stream
     }
     
     @inline(__always)
-    func value<Value: Sendable>(_ key: QueryKey, as type: Value.Type = Value.self) -> Value? {
-        let entry = store.entry(forKey: key, as: Value.self)
-        return entry?.data
-    }
-    
-    @inline(__always)
     func fetch<Value: Sendable>(
-        key: QueryKey,
-        options: QueryOptions = .init(),
-        now: Date,
+        queryKey: QueryKey,
+        options: QueryOptions,
         forceRefresh: Bool,
         fileId: StaticString,
-        fetcher: @escaping @Sendable () async throws -> Value
+        queryFn: @escaping @Sendable () async throws -> Value
     ) async -> (isFresh: Bool, result: Result<Value, Error>) {
-        if !forceRefresh, let entry = store.entry(forKey: key, as: Value.self) {
-            if let value = await entry.value(now: now) {
-                let isFreshed = await entry.isFresh(staleTime: options.staleTime, now: now)
-                
+        let clock = clock
+        let now = clock.now()
+        return await store.withEntry(queryKey: queryKey, as: Value.self, now: now) { entry in
+            if !forceRefresh, let value = entry.data {
+                let lastReadAt = entry.readAt
+                entry.readAt = now
                 SwiftQueryLogger.d(
-                    "Cache hit",
+                    "Hit from swiftquery",
                     metadata: [
-                        "key": key,
-                        "isFreshed": "\(isFreshed)",
-                        "View": fileId
-                    ]
-                )
-                return (isFreshed, .success(value))
-            } else if let inFlight = entry.inFlight {
-                SwiftQueryLogger.d(
-                    "Use inFlight request",
-                    metadata: [
-                        "key": key,
+                        "queryKey": queryKey,
                         "View": fileId
                     ]
                 )
                 
-                // Treat entry is fresh if data is still in flight
+                let isFresh = now.timeIntervalSince(lastReadAt) < options.staleTime
+                
+                return (isFresh, .success(value))
+                
+            } else {
+                SwiftQueryLogger.d(
+                    "\(forceRefresh ? "Refresh" : "Miss") from swiftquery - fetching",
+                    metadata: [
+                        "queryKey": queryKey,
+                        "View": fileId
+                    ]
+                )
+                
                 do {
-                    let value = try await inFlight.value
-                    await entry.metadata.updateReadAt(clock.now())
+                    let value = try await queryFn()
+                    let now = clock.now()
+                    entry.data = value
+                    entry.error = nil
+                    entry.readAt = now
+                    entry.updatedAt = now
                     return (true, .success(value))
                 } catch {
-                    // We treat entry as fresh even if inFlight fails
-                    // Because if this error is not transient, refetching won't help
-                    // We can use exponential backoff or other strategies if needed, but this is simpler.
+                    entry.data = nil
+                    entry.error = error
+                    entry.readAt = now
+                    entry.updatedAt = now
                     return (true, .failure(error))
                 }
             }
         }
-        
-        SwiftQueryLogger.d(
-            forceRefresh ? "Force refresh, Ignore cache - fetching" : "Cache miss – fetching",
-            metadata: [
-                "key": key,
-                "forceRefresh": "\(forceRefresh)",
-                "View": fileId
-            ]
-        )
-        
-        let task = Task<Value, Error> { try await fetcher() }
-        // This is not perfectly atomic, but good enough except for strict correctness
-        // Storing inFlight task is good for preventing duplicate fetches from unexpected concurrent requests
-        // For example,
-        // - Fetching user data but throughput of server is low, causing multiple views to request user data simultaneously.
-        store.storeEntry(forKey: key, entry: CacheEntry<Value>(
-            data: nil,
-            error: nil,
-            inFlight: task,
-            metadata: CacheMetadata(
-                readAt: now,
-                updatedAt: now
-            )
-        ))
-        
-        do {
-            let value = try await task.value
-            store.storeEntry(forKey: key, entry: CacheEntry<Value>(
-                data: value,
-                error: nil,
-                inFlight: nil,
-                metadata: CacheMetadata(
-                    readAt: now,
-                    updatedAt: now
-                )
-            ))
-            return (true, .success(value))
-        } catch {
-            store.storeEntry(forKey: key, entry: CacheEntry<Value>(
-                data: nil,
-                error: error,
-                inFlight: nil,
-                metadata: CacheMetadata(
-                    readAt: now,
-                    updatedAt: now
-                )
-            ))
-            return (true, .failure(error))
-        }
     }
 }
 
-public struct QueryBox<Value: Sendable> {
+public struct QueryBox<Value: Sendable>: Sendable {
     var data: Value?
     var isLoading: Bool = false
     var error: Error?
 }
 
+@MainActor
+@Observable
+public final class QueryObserver<Value: Sendable> {
+    fileprivate var box: QueryBox<Value>
+    fileprivate var queryKey: QueryKey? {
+        didSet {
+            if let queryKey {
+                start(queryKey: queryKey)
+            }
+        }
+    }
+    
+    @ObservationIgnored
+    private var task: Task<Void, Never>?
+    private let queryClient: QueryClient
+    private let batchExecutor: BatchExecutor
+    
+    init(
+        queryKey: QueryKey?,
+        queryClient: QueryClient,
+        batchExecutor: BatchExecutor,
+    ) {
+        self.box = QueryBox<Value>()
+        self.queryKey = queryKey
+        self.queryClient = queryClient
+        self.batchExecutor = batchExecutor
+        
+        if let queryKey {
+            start(queryKey: queryKey)
+        }
+    }
+    
+    func start(queryKey: QueryKey) {
+        self.task?.cancel()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            
+            box.data = await queryClient.store.entry(queryKey: queryKey, as: Value.self)?.data
+            await subscribe(queryKey: queryKey)
+        }
+        
+        self.task = task
+    }
+    
+    func subscribe(queryKey: QueryKey) async {
+        let now = queryClient.clock.now()
+        await syncStateWithCache(queryKey: queryKey, now: now)
+        let syncStream = await queryClient.createSyncStream(queryKey: queryKey)
+        for await _ in syncStream {
+            await syncStateWithCache(queryKey: queryKey, now: now)
+        }
+    }
+    
+    func syncStateWithCache(queryKey: QueryKey, now: Date) async {
+        if let cacheValue = await queryClient.store.entry(queryKey: queryKey, as: Value.self) {
+            box.data = cacheValue.data
+            box.error = nil
+        }
+    }
+}
+
+@MainActor
 @propertyWrapper
 public struct UseQuery<Value: Sendable>: DynamicProperty {
-    @State private var box: QueryBox<Value>
+    @State private var observer: QueryObserver<Value>
     
     public var wrappedValue: Value? {
-        box.data
+        observer.box.data
     }
     
-    public var projectedValue: Binding<QueryBox<Value>> {
-        $box
+    public var projectedValue: Binding<QueryObserver<Value>> {
+        $observer
     }
     
-    // queryKey of UseQuery is used only for initial value.
-    // queryKey can be nil and can be different from query modifier's one.
-    // query modifier's one has higher priority.
-    // If UseQuery whose query is different from modifier's one and pass it to modifier's Binding, it will be updated.
-    // Even if the queryKey is different.
     public init(_ queryKey: QueryKey? = nil) {
-        if let queryKey, let value = QueryClient.shared.value(queryKey, as: Value.self) {
-            self.box = QueryBox<Value>(
-                data: value,
-                isLoading: false,
-                error: nil
-            )
-        } else {
-            self.box = QueryBox<Value>()
-        }
+        self.observer = QueryObserver<Value>(
+            queryKey: queryKey,
+            queryClient: QueryClient.shared,
+            batchExecutor: BatchExecutor.shared,
+        )
     }
 }
 
 public extension View {
     func query<Value: Sendable>(
-        _ box: Binding<QueryBox<Value>>,
+        _ observer: Binding<QueryObserver<Value>>,
         queryKey: QueryKey,
         options: QueryOptions = .init(),
         fileId: StaticString = #fileID,
@@ -304,7 +296,7 @@ public extension View {
     ) -> some View {
         modifier(
             QueryModifier(
-                box: box,
+                observer: observer,
                 queryKey: queryKey,
                 options: options,
                 fileId: fileId,
@@ -318,7 +310,7 @@ public extension View {
 }
 
 struct QueryModifier<Value: Sendable>: ViewModifier {
-    @Binding var box: QueryBox<Value>
+    @Binding var observer: QueryObserver<Value>
     
     let queryKey: QueryKey
     let options: QueryOptions
@@ -331,121 +323,106 @@ struct QueryModifier<Value: Sendable>: ViewModifier {
     func body(content: Content) -> some View {
         content
             .task(id: queryKey) {
-                await subscribe(queryKey: queryKey)
+                if observer.queryKey != queryKey {
+                    observer.queryKey = queryKey
+                }
+                await fetch(queryKey: queryKey, now: queryClient.clock.now(), fileId: fileId)
             }
             .onAppear {
                 if options.refetchOnAppear {
-                    let now = queryClient.clock.now()
                     Task {
-                        await run(queryKey: queryKey, showLoading: true, now: now, fileId: fileId, streams: [])
+                        await fetch(queryKey: queryKey, now: queryClient.clock.now(), fileId: fileId)
                     }
                 }
             }
     }
     
     @inline(__always)
-    func subscribe(queryKey: QueryKey) async {
-        let now = queryClient.clock.now()
-        let streams = await queryClient.store.streams(forKey: queryKey)?.values.map { $0 } ?? []
-        await run(queryKey: queryKey, showLoading: true, now: now, fileId: fileId, streams: streams)
-        let stream = await queryClient.createInvalidationStream(for: queryKey)
-        for await _ in stream {
-            await run(queryKey: queryKey, showLoading: false, now: now, fileId: fileId, streams: streams)
-            if let value = queryClient.value(queryKey, as: Value.self) {
-                box.data = value
-                box.error = nil
-                box.isLoading = false
-            }
-        }
-    }
-    
-    @inline(__always)
-    func run(queryKey: QueryKey, showLoading: Bool, now: Date, fileId: StaticString, streams: [AsyncStream<Void>.Continuation]) async {
+    func fetch(queryKey: QueryKey, now: Date, fileId: StaticString) async {
         await batchExecutor.batchExecution(queryKey: queryKey) {
             SwiftQueryLogger.d(
-                "Fetching cache/remote",
+                "Batch executing fetch",
                 metadata: [
-                    "key": queryKey,
+                    "queryKey": queryKey,
                     "View": fileId,
                 ]
             )
             
-            if showLoading {
-                await MainActor.run {
-                    box.isLoading = true
-                }
-            }
             let (isFresh, result) = await queryClient.fetch(
-                key: queryKey,
+                queryKey: queryKey,
                 options: options,
-                now: now,
                 forceRefresh: false,
                 fileId: fileId,
-                fetcher: queryFn
+                queryFn: queryFn
             )
             
-            for continuation in streams {
-                continuation.yield(())
-            }
-            
-            await MainActor.run {
-                switch result {
-                case .success(let value):
-                    box.data = value
-                    box.error = nil
-                    onCompleted?(value)
-                case .failure(let error):
-                    box.error = error
+            let streams = await queryClient.store.streams(queryKey: queryKey)?.values.map { $0 } ?? []
+            switch result {
+            case .success(let value):
+                await MainActor.run {
+                    observer.box.data = value
+                    observer.box.error = nil
+                    observer.box.isLoading = false
+
+                    if isFresh {
+                        onCompleted?(value)
+                    }
                 }
-                box.isLoading = false
+                for continuation in streams {
+                    continuation.yield(())
+                }
+                
+            case .failure(let error):
+                await MainActor.run {
+                    observer.box.error = error
+                    observer.box.isLoading = false
+                }
             }
             
             if !isFresh {
                 let (_, result) = await queryClient.fetch(
-                    key: queryKey,
+                    queryKey: queryKey,
                     options: options,
-                    now: now,
                     forceRefresh: true,
                     fileId: fileId,
-                    fetcher: queryFn
+                    queryFn: queryFn
                 )
                 
-                await MainActor.run {
-                    switch result {
-                    case .success(let value):
-                        box.data = value
-                        box.error = nil
+                switch result {
+                case .success(let value):
+                    await MainActor.run {
+                        observer.box.data = value
+                        observer.box.error = nil
                         
                         // onCompleted can be called twice, but this feature can be changed in future.
                         onCompleted?(value)
-                    case .failure:
-                        // Second try is for updating cache for new data.
-                        // It is convenient to not override existing data with error.
-                        break
                     }
+                    for continuation in streams {
+                        continuation.yield(())
+                    }
+                case .failure:
+                    // Second try is for updating cache for new data.
+                    // It is convenient to not override existing data with error.
+                    break
                 }
             }
-        }
-        
-        for continuation in streams {
-            continuation.yield(())
         }
     }
 }
 
     
 public struct Boundary<Content: View, Value: Sendable>: View {
-    @Binding private var box: QueryBox<Value>
+    @Binding private var observer: QueryObserver<Value>
     private let content: (Value) -> Content
     private let fallback: (() -> AnyView)?
     private let errorFallback: ((Error) -> AnyView)?
 
     @_disfavoredOverload
     public init(
-        _ box: Binding<QueryBox<Value>>,
+        _ observer: Binding<QueryObserver<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content
     ) {
-        self._box = box
+        self._observer = observer
         self.content = content
         self.fallback = nil
         self.errorFallback = nil
@@ -453,11 +430,11 @@ public struct Boundary<Content: View, Value: Sendable>: View {
 
     @_disfavoredOverload
     public init(
-        _ box: Binding<QueryBox<Value>>,
+        _ observer: Binding<QueryObserver<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content,
         @ViewBuilder fallback: @escaping () -> some View
     ) {
-        self._box = box
+        self._observer = observer
         self.content = content
         self.fallback = { AnyView(fallback()) }
         self.errorFallback = nil
@@ -465,21 +442,21 @@ public struct Boundary<Content: View, Value: Sendable>: View {
 
     @_disfavoredOverload
     public init(
-        _ box: Binding<QueryBox<Value>>,
+        _ observer: Binding<QueryObserver<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content,
         @ViewBuilder fallback: @escaping () -> some View,
         @ViewBuilder errorFallback: @escaping (Error) -> some View
     ) {
-        self._box = box
+        self._observer = observer
         self.content = content
         self.fallback = { AnyView(fallback()) }
         self.errorFallback = { error in AnyView(errorFallback(error)) }
     }
     
     public var body: some View {
-        if let value = box.data {
+        if let value = observer.box.data {
             content(value)
-        } else if let error = box.error, let errorFallback = errorFallback {
+        } else if let error = observer.box.error, let errorFallback = errorFallback {
             errorFallback(error)
         } else if let fallback = fallback {
             fallback()

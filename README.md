@@ -1,5 +1,7 @@
 # swift-query
 
+[![Release](https://img.shields.io/github/v/release/horita-yuya/swift-query?sort=semver)](https://github.com/horita-yuya/swift-query/releases)
+
 A Data and State Manager library that brings [TanStack Query's](https://github.com/TanStack/query) powerful data fetching and caching patterns to SwiftUI. Manage asynchronous queries with automatic caching, invalidation, and UI updates.
 
 ## Installation
@@ -251,7 +253,7 @@ struct EditProfileView: View {
                         }
                     }
                 }
-                .disabled(updateUser.box.isRunning)
+                .disabled(updateUser.isLoading)
             }
         }
         .query($user, queryKey: ["user", userId]) {

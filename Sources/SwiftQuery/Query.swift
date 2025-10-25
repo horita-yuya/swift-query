@@ -2,6 +2,10 @@ import SwiftUI
 import Foundation
 import os
 
+enum SwiftQueryError: Error {
+    case inFlightCastError
+}
+
 public struct QueryKey: Equatable, Hashable, Sendable, ExpressibleByArrayLiteral, ExpressibleByStringLiteral, CustomStringConvertible {
     public var parts: [String]
     public init(_ parts: [String]) {
@@ -78,10 +82,10 @@ actor QueryClientStore: Sendable {
         queryKey: QueryKey,
         as type: Value.Type,
         now: Date,
-        handler: (inout CacheEntry<Value>) async -> (Bool, Result<Value, Error>)
+        handler: (inout CacheEntry<Value>, Bool) async -> (Bool, Result<Value, Error>)
     ) async -> (isFresh: Bool, result: Result<Value, Error>) {
         if var entry = cache[queryKey] as? CacheEntry<Value> {
-            let result = await handler(&entry)
+            let result = await handler(&entry, false)
             cache[queryKey] = entry
             return result
         } else {
@@ -91,7 +95,9 @@ actor QueryClientStore: Sendable {
                 readAt: now,
                 updatedAt: now
             )
-            let result = await handler(&entry)
+            
+            // Be careful to Actor reentrancy
+            let result = await handler(&entry, true)
             cache[queryKey] = entry
             return result
         }
@@ -105,6 +111,7 @@ actor QueryClientStore: Sendable {
 public final class QueryClient: Sendable {
     internal static let shared = QueryClient()
     internal let store = QueryClientStore()
+    private let inFlightTasks: OSAllocatedUnfairLock<[QueryKey: Task<any Sendable, Error>]> = .init(initialState: [:])
     fileprivate let clock: Clock
     
     init(clock: Clock = ClockImpl()) {
@@ -152,7 +159,7 @@ public final class QueryClient: Sendable {
     ) async -> (isFresh: Bool, result: Result<Value, Error>) {
         let clock = clock
         let now = clock.now()
-        return await store.withEntry(queryKey: queryKey, as: Value.self, now: now) { entry in
+        return await store.withEntry(queryKey: queryKey, as: Value.self, now: now) { entry, isNew in
             if !forceRefresh, let value = entry.data {
                 let lastReadAt = entry.readAt
                 entry.readAt = now
@@ -169,23 +176,59 @@ public final class QueryClient: Sendable {
                 return (isFresh, .success(value))
                 
             } else {
-                SwiftQueryLogger.d(
-                    "\(forceRefresh ? "Refresh" : "Miss") from swiftquery - fetching",
-                    metadata: [
-                        "queryKey": queryKey,
-                        "View": fileId
-                    ]
-                )
-                
                 do {
-                    let value = try await queryFn()
+                    let inFlightTask = inFlightTasks.withLock {
+                        let task = $0[queryKey]
+                        
+                        if let task {
+                            SwiftQueryLogger.d(
+                                "InFlight from swiftquery - waiting for already running fetch",
+                                metadata: [
+                                    "queryKey": queryKey,
+                                    "View": fileId
+                                ]
+                            )
+                            
+                            return task
+                        } else {
+                            SwiftQueryLogger.d(
+                                "\(forceRefresh ? "Refresh" : "Miss") from swiftquery - fetching",
+                                metadata: [
+                                    "queryKey": queryKey,
+                                    "View": fileId
+                                ]
+                            )
+                            
+                            let newTask = Task<any Sendable, Error> {
+                                try await queryFn()
+                            }
+                            $0[queryKey] = newTask
+                            return newTask
+                        }
+                    }
+                    
+                    let value = if let value = try await inFlightTask.value as? Value {
+                        value
+                    } else {
+                        throw SwiftQueryError.inFlightCastError
+                    }
+                    
+                    inFlightTasks.withLock {
+                        $0[queryKey] = nil
+                    }
+                    
                     let now = clock.now()
                     entry.data = value
                     entry.error = nil
                     entry.readAt = now
                     entry.updatedAt = now
                     return (true, .success(value))
+                    
                 } catch {
+                    inFlightTasks.withLock {
+                        $0[queryKey] = nil
+                    }
+                    
                     entry.data = nil
                     entry.error = error
                     entry.readAt = now

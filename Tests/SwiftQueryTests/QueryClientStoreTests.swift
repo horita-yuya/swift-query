@@ -11,7 +11,7 @@ import SwiftUI
         let store = QueryClientStore()
         #expect(await store.entry(queryKey: [queryKey], as: Int.self) == nil)
         
-        await store.withEntry(queryKey: [queryKey], as: Int.self, now: testClock.now()) { entry in
+        await store.withEntry(queryKey: [queryKey], as: Int.self, now: testClock.now()) { entry, _ in
             entry.data = 123
             return (false, .success(123))
         }

@@ -133,14 +133,73 @@ import Testing
         }
 
         var results: [(isFresh: Bool, result: Result<String, Error>)] = []
-
+        
         await withTaskGroup(of: (isFresh: Bool, result: Result<String, Error>).self) { group in
-            for _ in 0..<5 {
-                group.addTask {
-                    await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "", queryFn: queryFn)
-                }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "1", queryFn: queryFn)
             }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "2", queryFn: queryFn)
+            }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "3", queryFn: queryFn)
+            }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "4", queryFn: queryFn)
+            }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "5", queryFn: queryFn)
+            }
+            
+            for await result in group {
+                results.append(result)
+            }
+        }
 
+        #expect(results.count == 5)
+
+        let callCount = await calls.value
+        #expect(callCount == 1)
+
+        for result in results {
+            #expect(try result.result.get() == "Alice")
+        }
+
+        let cached: String? = await client.store.entry(queryKey: queryKey, as: String.self)?.data
+        #expect(cached == "Alice")
+    }
+    
+    @Test func simultaneous_force_fetches_get_same_value_with_single_remote_fetch() async throws {
+        let client = QueryClient()
+        let calls = Counter()
+        let queryKey: QueryKey = ["user", "concurrent"]
+        let options = QueryOptions(staleTime: 60, gcTime: 300, refetchOnAppear: true)
+
+        let queryFn = { @Sendable () async throws -> String in
+            await calls.inc()
+            try await Task.sleep(for: .milliseconds(50))
+            return "Alice"
+        }
+
+        var results: [(isFresh: Bool, result: Result<String, Error>)] = []
+        
+        await withTaskGroup(of: (isFresh: Bool, result: Result<String, Error>).self) { group in
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: true, fileId: "1", queryFn: queryFn)
+            }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: true, fileId: "2", queryFn: queryFn)
+            }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: true, fileId: "3", queryFn: queryFn)
+            }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: true, fileId: "4", queryFn: queryFn)
+            }
+            group.addTask {
+                await client.fetch(queryKey: queryKey, options: options, forceRefresh: true, fileId: "5", queryFn: queryFn)
+            }
+            
             for await result in group {
                 results.append(result)
             }

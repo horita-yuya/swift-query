@@ -39,7 +39,7 @@ import SwiftUI
         }
         #expect(await observer.box.data == 1)
         
-        await client.store.withEntry(queryKey: [queryKey], as: Int.self, now: testClock.now()) { entry in
+        await client.store.withEntry(queryKey: [queryKey], as: Int.self, now: testClock.now()) { entry, _ in
             entry.data = 2
             return (false, .success(2))
         }

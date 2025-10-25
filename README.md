@@ -1,5 +1,7 @@
 # swift-query
 
+[![Release](https://img.shields.io/github/v/release/horita-yuya/swift-query?sort=semver)](https://github.com/horita-yuya/swift-query/releases)
+
 A Data and State Manager library that brings [TanStack Query's](https://github.com/TanStack/query) powerful data fetching and caching patterns to SwiftUI. Manage asynchronous queries with automatic caching, invalidation, and UI updates.
 
 ## Installation
@@ -116,7 +118,7 @@ The data is automatically cached. If another view uses the same query key, it ge
 // Define once in your app
 extension Boundary {
     init(
-        _ value: Binding<QueryBox<Value>>,
+        _ value: Binding<QueryObserver<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content
     ) {
         self.init(value, content: content) {

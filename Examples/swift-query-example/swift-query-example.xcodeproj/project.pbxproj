@@ -7,8 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		817874DB2EA6FF9100FC1C5A /* swift-query in Frameworks */ = {isa = PBXBuildFile; productRef = 817874DA2EA6FF9100FC1C5A /* swift-query */; };
-		817874EB2EA7CAAA00FC1C5A /* swift-query in Frameworks */ = {isa = PBXBuildFile; productRef = 817874EA2EA7CAAA00FC1C5A /* swift-query */; };
+		8188E41C2EACAE4E003714A6 /* SwiftQuery in Frameworks */ = {isa = PBXBuildFile; productRef = 8188E41B2EACAE4E003714A6 /* SwiftQuery */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,8 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				817874DB2EA6FF9100FC1C5A /* swift-query in Frameworks */,
-				817874EB2EA7CAAA00FC1C5A /* swift-query in Frameworks */,
+				8188E41C2EACAE4E003714A6 /* SwiftQuery in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,8 +70,7 @@
 			);
 			name = "swift-query-example";
 			packageProductDependencies = (
-				817874DA2EA6FF9100FC1C5A /* swift-query */,
-				817874EA2EA7CAAA00FC1C5A /* swift-query */,
+				8188E41B2EACAE4E003714A6 /* SwiftQuery */,
 			);
 			productName = "swift-query-example";
 			productReference = 817874AF2EA6FF0E00FC1C5A /* swift-query-example.app */;
@@ -104,7 +101,7 @@
 			mainGroup = 817874A62EA6FF0E00FC1C5A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				817874D92EA6FF9100FC1C5A /* XCLocalSwiftPackageReference "../../../swift-query" */,
+				8188E41A2EACAE4E003714A6 /* XCLocalSwiftPackageReference "../../../swift-query" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 817874B02EA6FF0E00FC1C5A /* Products */;
@@ -346,20 +343,16 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		817874D92EA6FF9100FC1C5A /* XCLocalSwiftPackageReference "../../../swift-query" */ = {
+		8188E41A2EACAE4E003714A6 /* XCLocalSwiftPackageReference "../../../swift-query" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "../../../swift-query";
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		817874DA2EA6FF9100FC1C5A /* swift-query */ = {
+		8188E41B2EACAE4E003714A6 /* SwiftQuery */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = "swift-query";
-		};
-		817874EA2EA7CAAA00FC1C5A /* swift-query */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = "swift-query";
+			productName = SwiftQuery;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

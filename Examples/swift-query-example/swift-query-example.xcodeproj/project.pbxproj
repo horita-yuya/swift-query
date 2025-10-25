@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8188E40D2EAC8B39003714A6 /* SwiftQuery in Frameworks */ = {isa = PBXBuildFile; productRef = 8188E40C2EAC8B39003714A6 /* SwiftQuery */; };
+		8188E41C2EACAE4E003714A6 /* SwiftQuery in Frameworks */ = {isa = PBXBuildFile; productRef = 8188E41B2EACAE4E003714A6 /* SwiftQuery */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,7 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8188E40D2EAC8B39003714A6 /* SwiftQuery in Frameworks */,
+				8188E41C2EACAE4E003714A6 /* SwiftQuery in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,7 +70,7 @@
 			);
 			name = "swift-query-example";
 			packageProductDependencies = (
-				8188E40C2EAC8B39003714A6 /* SwiftQuery */,
+				8188E41B2EACAE4E003714A6 /* SwiftQuery */,
 			);
 			productName = "swift-query-example";
 			productReference = 817874AF2EA6FF0E00FC1C5A /* swift-query-example.app */;
@@ -101,7 +101,7 @@
 			mainGroup = 817874A62EA6FF0E00FC1C5A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				8188E3F62EAC7DE8003714A6 /* XCLocalSwiftPackageReference "../../../swift-query" */,
+				8188E41A2EACAE4E003714A6 /* XCLocalSwiftPackageReference "../../../swift-query" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 817874B02EA6FF0E00FC1C5A /* Products */;
@@ -343,16 +343,15 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		8188E3F62EAC7DE8003714A6 /* XCLocalSwiftPackageReference "../../../swift-query" */ = {
+		8188E41A2EACAE4E003714A6 /* XCLocalSwiftPackageReference "../../../swift-query" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "../../../swift-query";
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		8188E40C2EAC8B39003714A6 /* SwiftQuery */ = {
+		8188E41B2EACAE4E003714A6 /* SwiftQuery */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 8188E3F62EAC7DE8003714A6 /* XCLocalSwiftPackageReference "../../../swift-query" */;
 			productName = SwiftQuery;
 		};
 /* End XCSwiftPackageProductDependency section */

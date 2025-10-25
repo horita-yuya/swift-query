@@ -61,7 +61,7 @@ actor QueryClientStore: Sendable {
         watchers[queryKey]
     }
     
-    func storeStream(queryKey: QueryKey, id: UUID, continuation: AsyncStream<Void>.Continuation) {
+    fileprivate func storeStream(queryKey: QueryKey, id: UUID, continuation: AsyncStream<Void>.Continuation) {
         watchers[queryKey, default: [:]][id] = continuation
     }
     
@@ -73,6 +73,7 @@ actor QueryClientStore: Sendable {
         cache[queryKey] as? CacheEntry<Value>
     }
     
+    @discardableResult
     func withEntry<Value>(
         queryKey: QueryKey,
         as type: Value.Type,
@@ -103,7 +104,7 @@ actor QueryClientStore: Sendable {
 
 public final class QueryClient: Sendable {
     internal static let shared = QueryClient()
-    fileprivate let store = QueryClientStore()
+    internal let store = QueryClientStore()
     fileprivate let clock: Clock
     
     init(clock: Clock = ClockImpl()) {
@@ -134,7 +135,7 @@ public final class QueryClient: Sendable {
         let (stream, continuation) = AsyncStream<Void>.makeStream()
         await store.storeStream(queryKey: queryKey, id: id, continuation: continuation)
         continuation.onTermination = { [weak self] _ in
-            Task.detached {
+            Task {
                 await self?.store.removeStream(queryKey: queryKey, id: id)
             }
         }
@@ -204,54 +205,47 @@ public struct QueryBox<Value: Sendable>: Sendable {
 
 @MainActor
 @Observable
-public final class QueryObserver<Value: Sendable> {
-    fileprivate var box: QueryBox<Value>
-    fileprivate var queryKey: QueryKey? {
+public final class QueryObserver<Value: Sendable>: Sendable {
+    internal var box: QueryBox<Value>
+    internal var queryKey: QueryKey? {
         didSet {
             if let queryKey {
-                start(queryKey: queryKey)
+                subscribe(queryKey: queryKey)
             }
         }
     }
     
     @ObservationIgnored
-    private var task: Task<Void, Never>?
+    internal var task: Task<Void, Never>?
     private let queryClient: QueryClient
-    private let batchExecutor: BatchExecutor
+    
+    deinit {
+        task?.cancel()
+    }
     
     init(
         queryKey: QueryKey?,
         queryClient: QueryClient,
-        batchExecutor: BatchExecutor,
     ) {
         self.box = QueryBox<Value>()
         self.queryKey = queryKey
         self.queryClient = queryClient
-        self.batchExecutor = batchExecutor
         
         if let queryKey {
-            start(queryKey: queryKey)
+            subscribe(queryKey: queryKey)
         }
     }
     
-    func start(queryKey: QueryKey) {
+    func subscribe(queryKey: QueryKey) {
+        let queryClient = queryClient
         self.task?.cancel()
-        let task = Task { [weak self] in
-            guard let self else { return }
+        self.task = Task { [weak self] in
+            let now = queryClient.clock.now()
+            await self?.syncStateWithCache(queryKey: queryKey, now: now)
             
-            box.data = await queryClient.store.entry(queryKey: queryKey, as: Value.self)?.data
-            await subscribe(queryKey: queryKey)
-        }
-        
-        self.task = task
-    }
-    
-    func subscribe(queryKey: QueryKey) async {
-        let now = queryClient.clock.now()
-        await syncStateWithCache(queryKey: queryKey, now: now)
-        let syncStream = await queryClient.createSyncStream(queryKey: queryKey)
-        for await _ in syncStream {
-            await syncStateWithCache(queryKey: queryKey, now: now)
+            for await _ in await queryClient.createSyncStream(queryKey: queryKey) {
+                await self?.syncStateWithCache(queryKey: queryKey, now: now)
+            }
         }
     }
     
@@ -280,7 +274,6 @@ public struct UseQuery<Value: Sendable>: DynamicProperty {
         self.observer = QueryObserver<Value>(
             queryKey: queryKey,
             queryClient: QueryClient.shared,
-            batchExecutor: BatchExecutor.shared,
         )
     }
 }
@@ -312,13 +305,33 @@ public extension View {
 struct QueryModifier<Value: Sendable>: ViewModifier {
     @Binding var observer: QueryObserver<Value>
     
-    let queryKey: QueryKey
-    let options: QueryOptions
-    let fileId: StaticString
-    let queryClient: QueryClient
-    let batchExecutor: BatchExecutor
-    let queryFn: @Sendable () async throws -> Value
-    let onCompleted: ((Value) -> Void)?
+    private let queryKey: QueryKey
+    private let options: QueryOptions
+    private let fileId: StaticString
+    private let queryClient: QueryClient
+    private let batchExecutor: BatchExecutor
+    private let queryFn: @Sendable () async throws -> Value
+    private let onCompleted: ((Value) -> Void)?
+    
+    init(
+        observer: Binding<QueryObserver<Value>>,
+        queryKey: QueryKey,
+        options: QueryOptions,
+        fileId: StaticString,
+        queryClient: QueryClient,
+        batchExecutor: BatchExecutor,
+        queryFn: @Sendable @escaping () async throws -> Value,
+        onCompleted: ((Value) -> Void)?
+    ) {
+        self._observer = observer
+        self.queryKey = queryKey
+        self.options = options
+        self.fileId = fileId
+        self.queryClient = queryClient
+        self.batchExecutor = batchExecutor
+        self.queryFn = queryFn
+        self.onCompleted = onCompleted
+    }
 
     func body(content: Content) -> some View {
         content
@@ -326,19 +339,19 @@ struct QueryModifier<Value: Sendable>: ViewModifier {
                 if observer.queryKey != queryKey {
                     observer.queryKey = queryKey
                 }
-                await fetch(queryKey: queryKey, now: queryClient.clock.now(), fileId: fileId)
+                await fetch(queryKey: queryKey, fileId: fileId)
             }
             .onAppear {
                 if options.refetchOnAppear {
                     Task {
-                        await fetch(queryKey: queryKey, now: queryClient.clock.now(), fileId: fileId)
+                        await fetch(queryKey: queryKey, fileId: fileId)
                     }
                 }
             }
     }
     
     @inline(__always)
-    func fetch(queryKey: QueryKey, now: Date, fileId: StaticString) async {
+    func fetch(queryKey: QueryKey, fileId: StaticString) async {
         await batchExecutor.batchExecution(queryKey: queryKey) {
             SwiftQueryLogger.d(
                 "Batch executing fetch",

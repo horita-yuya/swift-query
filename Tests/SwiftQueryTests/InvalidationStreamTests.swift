@@ -5,12 +5,12 @@ import Testing
 @Suite struct InvalidationStreamTests {
     @Test func invalidation_yields_event() async {
         let client = QueryClient()
-        let key: QueryKey = ["users"]
+        let queryKey: QueryKey = ["users"]
 
-        let stream = await client.createInvalidationStream(for: key)
+        let stream = await client.createSyncStream(queryKey: queryKey)
         var it = stream.makeAsyncIterator()
 
-        await client.invalidate(key)
+        await client.invalidate(queryKey)
         #expect(await it.next() != nil)
     }
 }

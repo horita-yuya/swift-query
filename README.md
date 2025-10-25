@@ -116,7 +116,7 @@ The data is automatically cached. If another view uses the same query key, it ge
 // Define once in your app
 extension Boundary {
     init(
-        _ value: Binding<QueryBox<Value>>,
+        _ value: Binding<QueryObserver<Value>>,
         @ViewBuilder content: @escaping (Value) -> Content
     ) {
         self.init(value, content: content) {
@@ -251,7 +251,7 @@ struct EditProfileView: View {
                         }
                     }
                 }
-                .disabled(updateUser.isLoading)
+                .disabled(updateUser.box.isRunning)
             }
         }
         .query($user, queryKey: ["user", userId]) {

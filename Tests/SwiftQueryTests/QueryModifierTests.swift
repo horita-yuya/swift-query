@@ -7,7 +7,7 @@ private extension QueryModifier {
         queryKey: QueryKey,
         queryClient: QueryClient,
         options: QueryOptions,
-        batchExecutor: BatchExecutor,
+        batchExecutor: QueryBatchExecutor,
         queryFn: @Sendable @escaping () async throws -> Value,
     ) {
         let observer: QueryObserver<Value> = QueryObserver(queryKey: queryKey, queryClient: queryClient)
@@ -35,7 +35,7 @@ private extension QueryModifier {
         let clock = TestClock()
         let queryKey: QueryKey = ["a"]
         let client = QueryClient(clock: clock)
-        let executor = BatchExecutor()
+        let executor = QueryBatchExecutor()
         
         let mod = await QueryModifier(
             queryKey: queryKey,
@@ -55,7 +55,7 @@ private extension QueryModifier {
         let clock = TestClock()
         let queryKey: QueryKey = ["a"]
         let client = QueryClient(clock: clock)
-        let executor = BatchExecutor()
+        let executor = QueryBatchExecutor()
         let counter = Counter()
         
         let mod = await QueryModifier(

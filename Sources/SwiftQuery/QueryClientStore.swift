@@ -35,7 +35,6 @@ actor QueryClientStore: Sendable {
             var entry = QueryCacheEntry<Value>(
                 data: nil,
                 error: nil,
-                readAt: now,
                 updatedAt: now
             )
             
@@ -46,7 +45,7 @@ actor QueryClientStore: Sendable {
         }
     }
     
-    func removeEntry(queryKey: QueryKey) {
+    func markEntryAsStale(queryKey: QueryKey) {
         cache.removeValue(forKey: queryKey)
     }
 }

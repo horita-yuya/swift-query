@@ -21,7 +21,7 @@ public final class QueryClient: Sendable {
                 "View": fileId
             ]
         )
-        await store.removeEntry(queryKey: queryKey)
+        await store.markEntryAsStale(queryKey: queryKey)
         
         if let streams = await store.syncCacheStreams(queryKey: queryKey) {
             for (_, continuation) in streams {
@@ -55,8 +55,6 @@ public final class QueryClient: Sendable {
         let now = clock.now()
         return await store.withEntry(queryKey: queryKey, as: Value.self, now: now) { entry, isNew in
             if !forceRefresh, let value = entry.data {
-                let lastReadAt = entry.readAt
-                entry.readAt = now
                 SwiftQueryLogger.d(
                     "Hit from swiftquery",
                     metadata: [
@@ -65,7 +63,7 @@ public final class QueryClient: Sendable {
                     ]
                 )
                 
-                let isFresh = now.timeIntervalSince(lastReadAt) < options.staleTime
+                let isFresh = now.timeIntervalSince(entry.updatedAt) < options.staleTime
                 
                 return (isFresh, .success(value))
                 
@@ -114,7 +112,6 @@ public final class QueryClient: Sendable {
                     let now = clock.now()
                     entry.data = value
                     entry.error = nil
-                    entry.readAt = now
                     entry.updatedAt = now
                     return (true, .success(value))
                     
@@ -125,7 +122,6 @@ public final class QueryClient: Sendable {
                     
                     entry.data = nil
                     entry.error = error
-                    entry.readAt = now
                     entry.updatedAt = now
                     return (true, .failure(error))
                 }

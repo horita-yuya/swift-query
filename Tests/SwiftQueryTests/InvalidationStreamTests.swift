@@ -7,7 +7,7 @@ import Testing
         let client = QueryClient()
         let queryKey: QueryKey = ["users"]
 
-        let stream = await client.createSyncStream(queryKey: queryKey)
+        let stream = await client.createInvalidationStream(queryKey: queryKey)
         var it = stream.makeAsyncIterator()
 
         await client.invalidate(queryKey)

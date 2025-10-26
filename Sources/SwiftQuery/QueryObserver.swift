@@ -41,6 +41,9 @@ public final class QueryObserver<Value: Sendable>: Sendable {
             await self?.syncStateWithCache(queryKey: queryKey, now: now)
             
             for await _ in await queryClient.createSyncStream(queryKey: queryKey) {
+                if Task.isCancelled {
+                    return
+                }
                 await self?.syncStateWithCache(queryKey: queryKey, now: now)
             }
         }

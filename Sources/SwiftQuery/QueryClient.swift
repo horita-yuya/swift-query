@@ -21,10 +21,10 @@ public final class QueryClient: Sendable {
                 "View": fileId
             ]
         )
-        await store.markEntryAsStale(queryKey: queryKey)
+        await store.removeEntry(queryKey: queryKey)
         
-        if let streams = await store.syncCacheStreams(queryKey: queryKey) {
-            for (_, continuation) in streams {
+        if let invalidationStreams = await store.invalidationStreams(queryKey: queryKey) {
+            for (_, continuation) in invalidationStreams {
                 continuation.yield(())
             }
         }
@@ -38,6 +38,19 @@ public final class QueryClient: Sendable {
         continuation.onTermination = { [weak self] _ in
             Task {
                 await self?.store.removeSyncCacheStream(queryKey: queryKey, id: id)
+            }
+        }
+        return stream
+    }
+    
+    @inline(__always)
+    func createInvalidationStream(queryKey: QueryKey) async -> AsyncStream<Void> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        await store.storeInvalidationStream(queryKey: queryKey, id: id, continuation: continuation)
+        continuation.onTermination = { [weak self] _ in
+            Task {
+                await self?.store.removeInvalidationStream(queryKey: queryKey, id: id)
             }
         }
         return stream

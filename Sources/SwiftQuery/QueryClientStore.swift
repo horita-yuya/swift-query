@@ -1,19 +1,32 @@
 import Foundation
 
 actor QueryClientStore: Sendable {
-    private var watchers: [QueryKey: [UUID: AsyncStream<Void>.Continuation]] = [:]
+    private var invalidationContinuations: [QueryKey: [UUID: AsyncStream<Void>.Continuation]] = [:]
+    private var syncCacheContinuations: [QueryKey: [UUID: AsyncStream<Void>.Continuation]] = [:]
     private var cache: [QueryKey: Any] = [:]
     
     func syncCacheStreams(queryKey: QueryKey) -> [UUID: AsyncStream<Void>.Continuation]? {
-        watchers[queryKey]
+        syncCacheContinuations[queryKey]
     }
     
     func storeSyncCacheStream(queryKey: QueryKey, id: UUID, continuation: AsyncStream<Void>.Continuation) {
-        watchers[queryKey, default: [:]][id] = continuation
+        syncCacheContinuations[queryKey, default: [:]][id] = continuation
     }
     
     func removeSyncCacheStream(queryKey: QueryKey, id: UUID) {
-        watchers[queryKey]?[id] = nil
+        syncCacheContinuations[queryKey]?[id] = nil
+    }
+    
+    func invalidationStreams(queryKey: QueryKey) -> [UUID: AsyncStream<Void>.Continuation]? {
+        invalidationContinuations[queryKey]
+    }
+    
+    func storeInvalidationStream(queryKey: QueryKey, id: UUID, continuation: AsyncStream<Void>.Continuation) {
+        invalidationContinuations[queryKey, default: [:]][id] = continuation
+    }
+    
+    func removeInvalidationStream(queryKey: QueryKey, id: UUID) {
+        invalidationContinuations[queryKey]?[id] = nil
     }
     
     func entry<Value>(queryKey: QueryKey, as type: Value.Type) -> QueryCacheEntry<Value>? {
@@ -45,7 +58,8 @@ actor QueryClientStore: Sendable {
         }
     }
     
-    func markEntryAsStale(queryKey: QueryKey) {
+    // NOTE: Should I just mark this as stale or remove it entirely?
+    func removeEntry(queryKey: QueryKey) {
         cache.removeValue(forKey: queryKey)
     }
 }

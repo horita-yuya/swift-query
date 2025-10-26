@@ -88,4 +88,8 @@ private extension QueryModifier {
         try await Task.sleep(for: .milliseconds(1))
         #expect(await mod.observer.box.data == 2)
     }
+    
+    @Test func state_has_refreshed_value_after_invalidation() async throws {
+        // TODO: Impl
+    }
 }

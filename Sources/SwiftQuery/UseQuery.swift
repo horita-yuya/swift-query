@@ -83,6 +83,7 @@ struct QueryModifier<Value: Sendable>: ViewModifier {
                     observer.queryKey = queryKey
                 }
                 await fetch(queryKey: queryKey, fileId: fileId)
+                await subscribe(queryKey: queryKey, fileId: fileId)
             }
             .onAppear {
                 if options.refetchOnAppear {
@@ -162,6 +163,17 @@ struct QueryModifier<Value: Sendable>: ViewModifier {
                     break
                 }
             }
+        }
+    }
+    
+    @inline(__always)
+    func subscribe(queryKey: QueryKey, fileId: StaticString) async {
+        let invalidationStream = await queryClient.createInvalidationStream(queryKey: queryKey)
+        for await _ in invalidationStream {
+            if Task.isCancelled {
+                return
+            }
+            await fetch(queryKey: queryKey, fileId: fileId)
         }
     }
 }

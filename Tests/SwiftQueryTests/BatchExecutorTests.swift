@@ -32,7 +32,7 @@ import Testing
 
     @Test
     func multiple_call_into_single_call() async {
-        let exec = BatchExecutor()
+        let exec = QueryBatchExecutor()
         let key: QueryKey = ["test", "single"]
         let runs = Counter()
 
@@ -56,7 +56,7 @@ import Testing
 
     @Test
     func other_calls_resolved_after_first_call_resolved() async {
-        let exec = BatchExecutor()
+        let exec = QueryBatchExecutor()
         let key: QueryKey = ["test", "ordering"]
 
         let gate = Gate()

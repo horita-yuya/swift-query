@@ -18,7 +18,7 @@ Or add it to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/horita-yuya/swift-query.git", from: "1.2.0")
+    .package(url: "https://github.com/horita-yuya/swift-query.git", from: "1.2.1")
 ]
 ```
 
@@ -112,7 +112,7 @@ struct UserView: View {
 
 The data is automatically cached. If another view uses the same query key, it gets the cached data instantly - no duplicate requests!
 
-**Note:** Applications often define a custom `Boundary` initializer via extension with default `fallback` and `errorFallback` views. This makes your code even simpler:
+**Note:** Applications often define a custom `Boundary` initializer via extension with default `fallback` and `errorFallback` views. This makes your code even simpler. The custom extension is marked without `@_disfavoredOverload` so it takes precedence over the library's default initializers:
 
 ```swift
 // Define once in your app
@@ -139,7 +139,7 @@ extension Boundary {
     }
 }
 
-// Then use it everywhere
+// Then use it everywhere with just the content closure
 struct UserView: View {
     @UseQuery<User> var user
 

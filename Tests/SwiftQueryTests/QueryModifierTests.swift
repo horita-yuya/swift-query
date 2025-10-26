@@ -7,7 +7,7 @@ private extension QueryModifier {
         queryKey: QueryKey,
         queryClient: QueryClient,
         options: QueryOptions,
-        batchExecutor: BatchExecutor,
+        batchExecutor: QueryBatchExecutor,
         queryFn: @Sendable @escaping () async throws -> Value,
     ) {
         let observer: QueryObserver<Value> = QueryObserver(queryKey: queryKey, queryClient: queryClient)
@@ -35,7 +35,7 @@ private extension QueryModifier {
         let clock = TestClock()
         let queryKey: QueryKey = ["a"]
         let client = QueryClient(clock: clock)
-        let executor = BatchExecutor()
+        let executor = QueryBatchExecutor()
         
         let mod = await QueryModifier(
             queryKey: queryKey,
@@ -55,7 +55,7 @@ private extension QueryModifier {
         let clock = TestClock()
         let queryKey: QueryKey = ["a"]
         let client = QueryClient(clock: clock)
-        let executor = BatchExecutor()
+        let executor = QueryBatchExecutor()
         let counter = Counter()
         
         let mod = await QueryModifier(
@@ -87,5 +87,60 @@ private extension QueryModifier {
         await mod.fetch(queryKey: queryKey, fileId: "")
         try await Task.sleep(for: .milliseconds(1))
         #expect(await mod.observer.box.data == 2)
+    }
+    
+    @Test func state_has_refreshed_value_after_invalidation() async throws {
+        let clock = TestClock()
+        let queryKey: QueryKey = ["invalidation_test"]
+        let client = QueryClient(clock: clock)
+        let executor = QueryBatchExecutor()
+        let counter = Counter()
+
+        let mod = await QueryModifier(
+            queryKey: queryKey,
+            queryClient: client,
+            options: .init(),
+            batchExecutor: executor,
+            queryFn: {
+                await counter.inc()
+                return await counter.value
+            },
+        )
+
+        // Initial fetch
+        #expect(await mod.observer.box.data == nil)
+        await mod.fetch(queryKey: queryKey, fileId: "")
+        try await Task.sleep(for: .milliseconds(1))
+        #expect(await mod.observer.box.data == 1)
+
+        // Start subscription & Run invalidation
+        let subscribeTask = Task {
+            await mod.subscribe(queryKey: queryKey, fileId: "")
+        }
+        try await Task.sleep(for: .milliseconds(1))
+        await client.invalidate(queryKey)
+
+        try await Task.sleep(for: .milliseconds(150))
+
+        let data = await mod.observer.box.data
+        
+        #expect(data == 2)
+        
+        let counterValue = await counter.value
+        #expect(counterValue == 2)
+        
+        try await Task.sleep(for: .milliseconds(150))
+
+        // Stable in next time
+        do {
+            let data = await mod.observer.box.data
+            
+            #expect(data == 2)
+            
+            let counterValue = await counter.value
+            #expect(counterValue == 2)
+        }
+        
+        subscribeTask.cancel()
     }
 }

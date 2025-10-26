@@ -32,7 +32,7 @@ import SwiftUI
             queryClient: client
         )
         try await Task.sleep(for: .milliseconds(1))
-        let stream = await client.store.streams(queryKey: [queryKey])
+        let stream = await client.store.syncCacheStreams(queryKey: [queryKey])
         
         await MainActor.run {
             observer.box.data = 1
@@ -43,7 +43,7 @@ import SwiftUI
             entry.data = 2
             return (false, .success(2))
         }
-        try await Task.sleep(for: .milliseconds(1))
+        try await Task.sleep(for: .milliseconds(5))
         #expect(await observer.box.data == 1)
         stream!.values.forEach { $0.yield() }
         try await Task.sleep(for: .milliseconds(1))

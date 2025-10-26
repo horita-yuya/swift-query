@@ -12,7 +12,7 @@ import Testing
         let clock = TestClock()
         let client = QueryClient(clock: clock)
         let queryKey: QueryKey = ["user", 1]
-        let options = QueryOptions(staleTime: 0, gcTime: 300, refetchOnAppear: true)
+        let options = QueryOptions(staleTime: 0, refetchOnAppear: true)
 
         let (f1, r1) = await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "") {
             return "Alice"
@@ -38,7 +38,7 @@ import Testing
         
         let client = QueryClient(clock: clock)
         let queryKey: QueryKey = ["user", 1]
-        let options = QueryOptions(staleTime: 1, gcTime: 300, refetchOnAppear: true)
+        let options = QueryOptions(staleTime: 1, refetchOnAppear: true)
 
         let (f1, r1) = await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "") {
             return "Alice"
@@ -72,7 +72,7 @@ import Testing
         let calls = Counter()
 
         let queryKey: QueryKey = ["user", 1]
-        let options = QueryOptions(staleTime: 60, gcTime: 300, refetchOnAppear: true)
+        let options = QueryOptions(staleTime: 60, refetchOnAppear: true)
 
         let (f1, r1) = await client.fetch(queryKey: queryKey, options: options, forceRefresh: false, fileId: "") {
             await calls.inc()
@@ -124,7 +124,7 @@ import Testing
         let client = QueryClient()
         let calls = Counter()
         let queryKey: QueryKey = ["user", "concurrent"]
-        let options = QueryOptions(staleTime: 60, gcTime: 300, refetchOnAppear: true)
+        let options = QueryOptions(staleTime: 60, refetchOnAppear: true)
 
         let queryFn = { @Sendable () async throws -> String in
             await calls.inc()
@@ -173,7 +173,7 @@ import Testing
         let client = QueryClient()
         let calls = Counter()
         let queryKey: QueryKey = ["user", "concurrent"]
-        let options = QueryOptions(staleTime: 60, gcTime: 300, refetchOnAppear: true)
+        let options = QueryOptions(staleTime: 60, refetchOnAppear: true)
 
         let queryFn = { @Sendable () async throws -> String in
             await calls.inc()

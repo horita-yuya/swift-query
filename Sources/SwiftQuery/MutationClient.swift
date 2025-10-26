@@ -1,13 +1,8 @@
 import SwiftUI
 import Foundation
 
-public struct MutationBox: Sendable {
-    public fileprivate(set) var isRunning: Bool = false
-    public fileprivate(set) var error: Error?
-}
-
 @MainActor
-public struct MutationController {
+public struct MutationClient {
     @Binding private var box: MutationBox
     private let queryClient: QueryClient
     
@@ -15,7 +10,7 @@ public struct MutationController {
         box.isRunning
     }
 
-    fileprivate init(box: Binding<MutationBox>, queryClient: QueryClient) {
+    init(box: Binding<MutationBox>, queryClient: QueryClient) {
         self._box = box
         self.queryClient = queryClient
     }
@@ -65,21 +60,4 @@ public struct MutationController {
         box.isRunning = false
         box.error = nil
     }
-}
-
-@propertyWrapper
-@MainActor
-public struct UseMutation: DynamicProperty {
-    @State private var box = MutationBox()
-    private let client: QueryClient
-
-    public init() {
-        self.client = QueryClient.shared
-    }
-
-    public var wrappedValue: MutationController {
-        MutationController(box: $box, queryClient: client)
-    }
-
-    public var projectedValue: Binding<MutationBox> { $box }
 }

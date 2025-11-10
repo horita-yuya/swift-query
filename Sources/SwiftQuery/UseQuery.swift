@@ -43,6 +43,31 @@ public extension View {
             )
         )
     }
+    
+    func query<Value: Sendable>(
+        queryKey: QueryKey,
+        options: QueryOptions = .init(),
+        fileId: StaticString = #fileID,
+        queryFn: @escaping @Sendable () async throws -> Value,
+        onCompleted: ((Value) -> Void)? = nil
+    ) -> some View {
+        let observer = QueryObserver<Value>(
+            queryKey: nil,
+            queryClient: QueryClient.shared,
+        )
+        return modifier(
+            QueryModifier(
+                observer: .init(get: { observer }, set: { _ in }),
+                queryKey: queryKey,
+                options: options,
+                fileId: fileId,
+                queryClient: QueryClient.shared,
+                batchExecutor: QueryBatchExecutor.shared,
+                queryFn: queryFn,
+                onCompleted: onCompleted
+            )
+        )
+    }
 }
 
 struct QueryModifier<Value: Sendable>: ViewModifier {

@@ -56,6 +56,24 @@ public final class QueryClient: Sendable {
         return stream
     }
     
+    public func fetchQuery<Value: Sendable>(
+        queryKey: QueryKey,
+        options: QueryOptions = .init(),
+        queryFn: @escaping @Sendable () async throws -> Value
+    ) async -> Result<Value, Error> {
+        let response = await fetch(
+            queryKey: queryKey,
+            options: options,
+            forceRefresh: false,
+            fileId: #fileID,
+            queryFn: queryFn
+        )
+        
+        // TODO: Handle isFresh
+        
+        return response.result
+    }
+    
     @inline(__always)
     func fetch<Value: Sendable>(
         queryKey: QueryKey,
